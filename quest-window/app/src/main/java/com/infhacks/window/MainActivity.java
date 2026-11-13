@@ -91,7 +91,8 @@ public class MainActivity extends Activity {
         AlertDialog.Builder d = new AlertDialog.Builder(this).setTitle(pkg);
         if (v.blocked) {
             d.setMessage("Blocked - mods stop here.\n\n" + String.join("\n", v.reasons))
-             .setPositiveButton("OK", null);
+             .setPositiveButton("OK", null)
+             .setNegativeButton("Download APK", (x, y) -> exportApk(pkg));
         } else {
             boolean on = allow().contains(pkg);
             d.setMessage("No multiplayer signs found (heuristic, not proof). Only enable if you know this app is single-player.")
@@ -114,13 +115,8 @@ public class MainActivity extends Activity {
         if (i != null) startActivity(i);
     }
 
-    /** Copies the app's APK file(s) to Downloads/QuestModManager. Guard is re-checked first. */
+    /** Copies the app's APK file(s) to Downloads/QuestModManager. Works for any app; the guard only gates mod actions. */
     private void exportApk(String pkg) {
-        if (MultiplayerGuard.check(getPackageManager(), pkg).blocked) {
-            Toast.makeText(this, "Blocked - not exported", Toast.LENGTH_LONG).show();
-            refresh();
-            return;
-        }
         new Thread(() -> {
             String msg;
             try {
