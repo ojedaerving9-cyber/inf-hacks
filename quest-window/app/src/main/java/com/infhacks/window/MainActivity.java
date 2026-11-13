@@ -139,18 +139,37 @@ public class MainActivity extends Activity {
         }).start();
     }
 
+    private static final long CHUNK = 25L * 1024 * 1024;
+
+    /** Copies src to Downloads; files over 25 MB are split into name.part001, .part002, ... */
     private void copy(File src, String name) throws Exception {
-        ContentValues cv = new ContentValues();
-        cv.put(MediaStore.Downloads.DISPLAY_NAME, name);
-        cv.put(MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive");
-        cv.put(MediaStore.Downloads.RELATIVE_PATH, "Download/QuestModManager");
-        Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
-        if (uri == null) throw new Exception("could not create file");
-        try (InputStream in = new FileInputStream(src);
-             OutputStream out = getContentResolver().openOutputStream(uri)) {
+        boolean split = src.length() > CHUNK;
+        try (InputStream in = new FileInputStream(src)) {
             byte[] buf = new byte[65536];
-            int r;
-            while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+            int part = 1;
+            boolean more = true;
+            while (more) {
+                String fn = split ? String.format("%s.part%03d", name, part) : name;
+                ContentValues cv = new ContentValues();
+                cv.put(MediaStore.Downloads.DISPLAY_NAME, fn);
+                cv.put(MediaStore.Downloads.MIME_TYPE,
+                        split ? "application/octet-stream" : "application/vnd.android.package-archive");
+                cv.put(MediaStore.Downloads.RELATIVE_PATH, "Download/QuestModManager");
+                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                if (uri == null) throw new Exception("could not create file");
+                long written = 0;
+                try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                    while (!split || written < CHUNK) {
+                        int want = split ? (int) Math.min(buf.length, CHUNK - written) : buf.length;
+                        int r = in.read(buf, 0, want);
+                        if (r <= 0) { more = false; break; }
+                        out.write(buf, 0, r);
+                        written += r;
+                    }
+                }
+                if (!split) break;
+                part++;
+            }
         }
     }
 }
