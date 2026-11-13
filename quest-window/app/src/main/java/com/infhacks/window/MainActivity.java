@@ -6,7 +6,16 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.ContentValues;
+import android.content.pm.PackageInfo;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
+import android.widget.Toast;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -93,7 +102,7 @@ public class MainActivity extends Activity {
                  refresh();
              });
             if (on) d.setNeutralButton("Launch", (x, y) -> launchIfSafe(pkg));
-            d.setNegativeButton("Cancel", null);
+            d.setNegativeButton("Download APK", (x, y) -> exportApk(pkg));
         }
         d.show();
     }
@@ -103,5 +112,49 @@ public class MainActivity extends Activity {
         if (MultiplayerGuard.check(getPackageManager(), pkg).blocked) { refresh(); return; }
         Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
         if (i != null) startActivity(i);
+    }
+
+    /** Copies the app's APK file(s) to Downloads/QuestModManager. Guard is re-checked first. */
+    private void exportApk(String pkg) {
+        if (MultiplayerGuard.check(getPackageManager(), pkg).blocked) {
+            Toast.makeText(this, "Blocked - not exported", Toast.LENGTH_LONG).show();
+            refresh();
+            return;
+        }
+        new Thread(() -> {
+            String msg;
+            try {
+                ApplicationInfo ai = getPackageManager().getApplicationInfo(pkg, 0);
+                List<String> files = new ArrayList<>();
+                files.add(ai.sourceDir);
+                if (ai.splitSourceDirs != null) for (String s : ai.splitSourceDirs) files.add(s);
+                int n = 0;
+                for (String f : files) {
+                    String name = n == 0 ? pkg + ".apk" : pkg + "-split" + n + ".apk";
+                    copy(new File(f), name);
+                    n++;
+                }
+                msg = "Saved " + n + " file(s) to Downloads/QuestModManager";
+            } catch (Exception e) {
+                msg = "Export failed: " + e.getMessage();
+            }
+            final String out = msg;
+            runOnUiThread(() -> Toast.makeText(this, out, Toast.LENGTH_LONG).show());
+        }).start();
+    }
+
+    private void copy(File src, String name) throws Exception {
+        ContentValues cv = new ContentValues();
+        cv.put(MediaStore.Downloads.DISPLAY_NAME, name);
+        cv.put(MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive");
+        cv.put(MediaStore.Downloads.RELATIVE_PATH, "Download/QuestModManager");
+        Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+        if (uri == null) throw new Exception("could not create file");
+        try (InputStream in = new FileInputStream(src);
+             OutputStream out = getContentResolver().openOutputStream(uri)) {
+            byte[] buf = new byte[65536];
+            int r;
+            while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+        }
     }
 }
