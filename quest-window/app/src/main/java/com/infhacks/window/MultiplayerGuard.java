@@ -14,10 +14,11 @@ import java.util.zip.ZipFile;
 /** Fail-closed check: any sign of online/multiplayer blocks the app. Heuristic, not proof. */
 public final class MultiplayerGuard {
     private static final String[] SIGNALS = {
-        "photon", "netcode", "mirror.networking", "fishnet", "playfab", "gamelift", "nakama",
-        "oculus.platform", "oculus.multiplayer", "horizon", "vivox", "agora", "steamworks",
-        "epiconline", "eos_", "matchmak", "multiplayer", "online", "roblox", "unet", "colyseus",
-        "photonengine", "normcore", "dissonance", "braincloud", "gameanalytics.network"
+        "photonengine", "exitgames", "photon.realtime", "libphoton", "unity.netcode", "libnetcode",
+        "mirror.networking", "fishnet", "playfab.multiplayer", "gamelift", "nakama", "heroiclabs",
+        "oculus.platform", "oculus.multiplayer", "vivox", "agora.rtc", "io.agora", "steamworks",
+        "epiconline", "matchmaking", "matchmaker", "multiplayer", "colyseus", "normcore",
+        "dissonance", "braincloud", "unityengine.networking", "roblox"
     };
     private static final String[] BLOCKED_PACKAGES = {
         "com.roblox.client", "com.oculus.vrshell", "com.facebook.horizon", "com.oculus.horizon"

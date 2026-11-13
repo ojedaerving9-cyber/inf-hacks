@@ -8,10 +8,12 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -21,6 +23,7 @@ public class MainActivity extends Activity {
     private final List<String> pkgs = new ArrayList<>();
     private final List<String> rows = new ArrayList<>();
     private ArrayAdapter<String> adapter;
+    private boolean showSystem = false;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -31,11 +34,19 @@ public class MainActivity extends Activity {
         TextView head = new TextView(this);
         head.setText("Mod Manager - single-player only. Any multiplayer sign blocks an app.");
         head.setPadding(24, 24, 24, 24);
+        Button toggle = new Button(this);
+        toggle.setText("Show system apps: OFF");
+        toggle.setOnClickListener(v -> {
+            showSystem = !showSystem;
+            toggle.setText("Show system apps: " + (showSystem ? "ON" : "OFF"));
+            refresh();
+        });
         ListView list = new ListView(this);
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, rows);
         list.setAdapter(adapter);
         list.setOnItemClickListener((p, v, i, id) -> open(pkgs.get(i)));
         root.addView(head);
+        root.addView(toggle);
         root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(root);
         refresh();
@@ -45,16 +56,24 @@ public class MainActivity extends Activity {
 
     private void refresh() {
         PackageManager pm = getPackageManager();
-        pkgs.clear(); rows.clear();
         Set<String> allow = allow();
+        List<String[]> items = new ArrayList<>(); // {sortKey, pkg, row}
         for (ApplicationInfo ai : pm.getInstalledApplications(0)) {
             if (pm.getLaunchIntentForPackage(ai.packageName) == null) continue;
             if (ai.packageName.equals(getPackageName())) continue;
+            boolean system = (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0
+                    && (ai.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0;
+            if (system && !showSystem) continue;
             boolean blocked = MultiplayerGuard.check(pm, ai.packageName).blocked;
-            String tag = blocked ? "BLOCKED" : allow.contains(ai.packageName) ? "ENABLED" : "not enabled";
-            pkgs.add(ai.packageName);
-            rows.add(pm.getApplicationLabel(ai) + "  [" + tag + "]\n" + ai.packageName);
+            int rank = blocked ? 2 : allow.contains(ai.packageName) ? 0 : 1;
+            String tag = blocked ? "BLOCKED" : rank == 0 ? "ENABLED" : "not enabled";
+            String label = String.valueOf(pm.getApplicationLabel(ai));
+            items.add(new String[]{rank + label.toLowerCase(), ai.packageName,
+                    label + "  [" + tag + "]\n" + ai.packageName});
         }
+        Collections.sort(items, (a, b) -> a[0].compareTo(b[0]));
+        pkgs.clear(); rows.clear();
+        for (String[] it : items) { pkgs.add(it[1]); rows.add(it[2]); }
         adapter.notifyDataSetChanged();
     }
 
